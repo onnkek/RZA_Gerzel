@@ -22,6 +22,7 @@ private:
 	float* sin_array;
 	int sin_array_sz;
 	float Fs;
+	float old_arg;
 	float a[NSUM];
 	float wx[NSUM];
 	float wy[NSUM];
@@ -65,17 +66,6 @@ void vect_calc::init_sin()
 }
 void vect_calc::init_calc(int n_sum, float freq)
 {
-	//float a, wx, wy, Fs;
-	//float n_harm = 1; // номер гармоники
-	//freq = 50;
-	//Fs = 2000;
-	//float num_point_float = Fs / freq;
-	//num_point = (int)num_point_float;
-	//printf("num_point = %d, num_point_float = %.2f \n", num_point, num_point_float);
-	//a = 2 * cos((2 * M_PI * n_harm) / num_point);
-	//wx = a / 2;
-	//wy = sqrt(1 - wx * wx);
-	//printf("a = %.3f, wx = %.3f, wy = %.3f\n", a, wx, wy);
 	Fs = 2000;
 	float n_harm = 1;
 	float num_point_float = Fs / freq;
@@ -123,25 +113,34 @@ void vect_calc::step()
 }
 void vect_calc::rza_sim()
 {
-	for (int n_sum = 0; n_sum < NSUM; n_sum++)
+	old_arg = 0;
+	for (int n_sum = 0; n_sum < NSUM; n_sum++) // Инициализация
 	{
 		init_calc(n_sum, 50);
+		cnt[n_sum] = n_sum * num_point[n_sum] / NSUM;
 	}
-	for (int i = 0; i < sin_array_sz; i++)
+	for (int i = 0; i < sin_array_sz; i++) // Цикл по массиву исходных данных
 	{
 		float ADC_val = sin_array[i];
-		for (int n_sum = 0; n_sum < NSUM; n_sum++)
+		for (int n_sum = 0; n_sum < NSUM; n_sum++) // Цикл по накапливаемым суммам
 		{
 			sum_calc(n_sum, ADC_val);
-			if (cnt[n_sum] >= num_point[n_sum])
+			if (cnt[n_sum] >= num_point[n_sum]) // Условие готовности результата по одной из сумм
 			{
 				float out_real;
 				float out_image;
-				result_calc(n_sum, &out_real, &out_image);
+				result_calc(n_sum, &out_real, &out_image); // Вычисление результата по готовой сумме
 				float out_abs = sqrt(out_real * out_real + out_image * out_image);
-				float out_arg = atan2(out_image, out_real);
-				printf("out = %.2f |_ %.2f \n", out_abs, out_arg * 180 / M_PI);
-				init_calc(n_sum, 50);
+				float out_arg = atan2(out_image, out_real) + n_sum * 2 * M_PI / NSUM;
+				out_real = out_abs * cos(out_arg);
+				out_image = out_abs * sin(out_arg);
+				out_arg = atan2(out_image, out_real);
+				float d_delta = out_arg - old_arg;
+				old_arg = out_arg;
+				float d_f = d_delta / (2 * M_PI * NSUM);
+				float f = 49 + d_f;
+				printf("out = %.2f |_ %.2f f=%.2f \n", out_abs, out_arg * 180 / M_PI, f);
+				init_calc(n_sum, 50); // Повторная инициализация переменных суммы после вычисления результата
 			}
 		}
 
